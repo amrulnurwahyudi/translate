@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Transync AI</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+    <div class="container">
+
+        <!-- HEADER -->
+        <div class="top-bar">
+            <div class="logo">
+                🌐 Transync AI
+            </div>
+            <div class="subtitle">
+                Real-Time Speech Translation
+            </div>
+        </div>
+
+        <!-- CONTROLS -->
+        <div class="control-panel">
+            <button id="startBtn">▶</button>
+            <button id="stopBtn">■</button>
+        </div>
+
+        <!-- RESULT CARD -->
+        <div class="result-card">
+
+            <!-- TOOLBAR -->
+            <div class="result-toolbar">
+                <button id="langBtn" class="lang-btn">
+                    ID ⇄ EN ▼
+                </button>
+
+                <div class="tools">
+                    <button class="icon-btn" title="Play Original">🔊</button>
+                    <button class="icon-btn" title="Play Translation">🔉</button>
+                    <button class="icon-btn" title="More">⋮</button>
+                </div>
+            </div>
+
+            <!-- TRANSCRIPT AREA -->
+            <div id="conversation">
+                <div class="empty-state">
+                    🎤 Tekan tombol Start untuk mulai transkripsi
+                </div>
+            </div>
+
+        </div>
+
+    </div>
+
+    <!-- LANGUAGE POPUP -->
+    <div id="languageModal" class="modal">
+        <div class="modal-content">
+
+            <div class="language-grid">
+
+                <!-- Bahasa Awal (Source) -->
+                <div class="language-column">
+                    <h3>Source</h3>
+					<div class="lang-item source-lang selected" data-code="ID" data-speech="id-ID">
+						🇮🇩 Indonesian
+					</div>
+					<div class="lang-item source-lang" data-code="EN" data-speech="en-US">
+						🇺🇸 English
+					</div>
+					<div class="lang-item source-lang" data-code="JA" data-speech="ja-JP">
+						🇯🇵 Japanese
+					</div>
+					<div class="lang-item source-lang" data-code="KO" data-speech="ko-KR">
+						🇰🇷 Korean
+					</div>
+					<div class="lang-item source-lang" data-code="ZH" data-speech="zh-CN">
+						🇨🇳 Chinese
+					</div>
+					<div class="lang-item source-lang" data-code="ES" data-speech="es-ES">
+						🇪🇸 Spanish
+					</div>
+					<div class="lang-item source-lang" data-code="FR" data-speech="fr-FR">
+						🇫🇷 French
+					</div>
+					<div class="lang-item source-lang" data-code="DE" data-speech="de-DE">
+						🇩🇪 German
+					</div>
+					<div class="lang-item source-lang" data-code="AR" data-speech="ar-SA">
+						🇸🇦 Arabic
+					</div>
+					<div class="lang-item source-lang" data-code="SI" data-speech="si-LK">
+						🇱🇰 Sinhala (Sri Lanka)
+					</div> 
+                </div> <!-- <-- PERBAIKAN: Menutup language-column Source -->
+
+                <!-- Bahasa Tujuan (Target) -->
+                <div class="language-column">
+					<h3>Target</h3>
+                    <div class="lang-item target-lang selected" data-code="EN" data-api="en">
+							🇺🇸 English
+						</div>
+						<div class="lang-item target-lang" data-code="ID" data-api="id">
+							🇮🇩 Indonesian
+						</div>
+						<div class="lang-item target-lang" data-code="JA" data-api="ja">
+							🇯🇵 Japanese
+						</div>
+						<div class="lang-item target-lang" data-code="KR" data-api="ko">
+							🇰🇷 Korean
+						</div>
+						<div class="lang-item target-lang" data-code="CN" data-api="zh">
+							🇨🇳 Chinese
+						</div>
+						<div class="lang-item target-lang" data-code="ES" data-api="es">
+							🇪🇸 Spanish
+						</div>
+						<div class="lang-item target-lang" data-code="FR" data-api="fr">
+							🇫🇷 French
+						</div>
+						<div class="lang-item target-lang" data-code="DE" data-api="de">
+							🇩🇪 German
+						</div>
+						<div class="lang-item target-lang" data-code="SA" data-api="ar">
+							🇸🇦 Arabic
+						</div>
+						<div class="lang-item target-lang" data-code="SI" data-api="si">
+							🇱🇰 Sinhala (Sri Lanka)
+						</div>
+                </div> <!-- <-- PERBAIKAN: Menutup language-column Target -->
+
+            </div> <!-- <-- PERBAIKAN: Menutup language-grid -->
+
+            <button id="confirmLang" class="confirm-btn">
+                Confirm
+            </button>
+
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+
+</body>
+
+</html>
