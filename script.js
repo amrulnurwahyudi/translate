@@ -10,9 +10,10 @@ let selectedSpeechLang = "id-ID";
 
 let activeBlock = null; 
 let silenceTimer = null; 
-
-// Menyimpan akumulasi teks final untuk paragraf/blok aktif saat ini
 let finalTranscriptAccumulator = ""; 
+
+// Status untuk melacak apakah user sengaja menekan tombol Stop atau belum
+let isUserStopped = false; 
 
 function initSpeechRecognition() {
   if (!SpeechRecognition) {
@@ -24,6 +25,11 @@ function initSpeechRecognition() {
     return;
   }
 
+  // Jika sudah ada instance sebelumnya, hentikan dulu untuk mencegah double
+  if (recognition) {
+    try { recognition.stop(); } catch(e) {}
+  }
+
   recognition = new SpeechRecognition();
   recognition.continuous = true;
   recognition.interimResults = true; 
@@ -33,7 +39,6 @@ function initSpeechRecognition() {
     let interimTranscript = "";
     let currentFinalThisSession = "";
 
-    // Loop hasil dari browser untuk memisahkan mana yang 'final' dan mana yang 'interim'
     for (let i = event.resultIndex; i < event.results.length; ++i) {
       if (event.results[i].isFinal) {
         currentFinalThisSession += event.results[i][0].transcript + " ";
@@ -42,27 +47,21 @@ function initSpeechRecognition() {
       }
     }
 
-    // Jika ada bagian baru yang sudah final dari browser, gabungkan ke akumulator permanen
     if (currentFinalThisSession) {
       finalTranscriptAccumulator += currentFinalThisSession;
     }
 
-    // Teks yang ditampilkan di layar adalah: Akumulasi Final + Teks Interim saat ini
     const fullTextToShow = (finalTranscriptAccumulator + interimTranscript).trim();
     if (!fullTextToShow) return;
 
-    // Terjemahkan teks secara live
     const translated = await translateText(fullTextToShow, selectedSource, selectedTarget);
-
-    // Update tampilan di layar
     updateLiveResult(fullTextToShow, translated);
 
-    // Reset timer jeda diam (5 detik)
     clearTimeout(silenceTimer);
     silenceTimer = setTimeout(() => {
       if (activeBlock) {
-        activeBlock = null; // Kunci blok ini
-        finalTranscriptAccumulator = ""; // Reset akumulator untuk paragraf berikutnya
+        activeBlock = null; 
+        finalTranscriptAccumulator = ""; 
       }
     }, 5000); 
   };
@@ -71,10 +70,20 @@ function initSpeechRecognition() {
     console.error("Speech error:", event.error);
   };
 
+  // FITUR ANTI STOP SENDIRI DI HP
   recognition.onend = function () {
-    activeBlock = null;
-    finalTranscriptAccumulator = "";
-    clearTimeout(silenceTimer);
+    // Jika user TIDAK sengaja menolak/mengklik stop, tapi HP menutupnya otomatis, nyalakan lagi secara diam-diam
+    if (!isUserStopped) {
+      try {
+        recognition.start();
+      } catch (e) {
+        console.log("Gagal auto-restart:", e);
+      }
+    } else {
+      activeBlock = null;
+      finalTranscriptAccumulator = "";
+      clearTimeout(silenceTimer);
+    }
   };
 }
 
@@ -82,20 +91,28 @@ initSpeechRecognition();
 
 /* START */
 document.getElementById("startBtn").addEventListener("click", () => {
-  if (!recognition) return;
+  isUserStopped = false; // Tandai bahwa user ingin merekam
+  
+  if (!recognition) {
+    initSpeechRecognition();
+  }
+
   recognition.lang = selectedSpeechLang;
   activeBlock = null;
   finalTranscriptAccumulator = "";
+
   try {
     recognition.start();
   } catch (e) {
-    console.log("Recognition sudah aktif");
+    console.log("Recognition sudah aktif:", e);
   }
 });
 
 /* STOP */
 document.getElementById("stopBtn").addEventListener("click", () => {
+  isUserStopped = true; // Tandai bahwa user sengaja berhenti
   if (!recognition) return;
+  
   recognition.stop();
   activeBlock = null;
   finalTranscriptAccumulator = "";
