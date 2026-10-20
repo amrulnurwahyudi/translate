@@ -46,7 +46,7 @@ function initSpeechRecognition() {
     const fullTextToShow = (finalTranscriptAccumulator + interimTranscript).trim();
     if (!fullTextToShow) return;
 
-    // Terjemahkan secara live terus-menerus tanpa terpotong waktu
+    // Terjemahkan secara live tanpa restart
     const translated = await translateText(fullTextToShow, selectedSource, selectedTarget);
     updateLiveResult(fullTextToShow, translated);
   };
@@ -55,18 +55,9 @@ function initSpeechRecognition() {
     console.error("Speech error:", event.error);
   };
 
-  // Murni auto-restart jika browser HP menutup mic karena hening sesaat,
-  // TAPI tidak akan membuat paragraf baru (tetap di satu blok sampai tombol Stop ditekan).
+  // DIHAPUS/DIKOSONGI: Tidak ada lagi auto-restart di onend agar HP tidak restart-restart sendiri & berulang.
   recognition.onend = function () {
-    if (isRunning) {
-      setTimeout(() => {
-        if (isRunning) {
-          try {
-            recognition.start();
-          } catch (e) {}
-        }
-      }, 300);
-    }
+    // Biarkan kosong agar benar-benar berhenti tenang sesuai alur sistem
   };
 }
 
@@ -93,9 +84,9 @@ document.getElementById("startBtn").addEventListener("click", () => {
   }
 });
 
-/* TOMBOL STOP (Disinilah baru benar-benar berhenti) */
+/* TOMBOL STOP */
 document.getElementById("stopBtn").addEventListener("click", () => {
-  isRunning = false; // Matikan status aktif
+  isRunning = false; 
   
   if (recognition) {
     try {
@@ -107,7 +98,7 @@ document.getElementById("stopBtn").addEventListener("click", () => {
   finalTranscriptAccumulator = "";
 });
 
-/* FUNGSI UPDATE LIVE DI SATU BLOK YANG SAMA */
+/* FUNGSI UPDATE LIVE */
 function updateLiveResult(source, translated) {
   const empty = conversation.querySelector(".empty-state");
   if (empty) empty.remove();
@@ -118,7 +109,6 @@ function updateLiveResult(source, translated) {
     minute: "2-digit"
   });
 
-  // Selama tombol stop belum ditekan, teks akan terus diperbarui di blok ini tanpa bikin baris baru
   if (!activeBlock) {
     const block = document.createElement("div");
     block.className = "block";
