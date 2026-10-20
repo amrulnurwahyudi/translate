@@ -9,11 +9,8 @@ let selectedTarget = "EN";
 let selectedSpeechLang = "id-ID";
 
 let activeBlock = null; 
-let silenceTimer = null; 
 let finalTranscriptAccumulator = ""; 
-
-// Status untuk melacak apakah user sengaja menekan tombol Stop atau belum
-let isUserStopped = false; 
+let isRunning = false; 
 
 function initSpeechRecognition() {
   if (!SpeechRecognition) {
@@ -23,11 +20,6 @@ function initSpeechRecognition() {
       </div>
     `;
     return;
-  }
-
-  // Jika sudah ada instance sebelumnya, hentikan dulu untuk mencegah double
-  if (recognition) {
-    try { recognition.stop(); } catch(e) {}
   }
 
   recognition = new SpeechRecognition();
@@ -54,72 +46,68 @@ function initSpeechRecognition() {
     const fullTextToShow = (finalTranscriptAccumulator + interimTranscript).trim();
     if (!fullTextToShow) return;
 
+    // Terjemahkan secara live terus-menerus tanpa terpotong waktu
     const translated = await translateText(fullTextToShow, selectedSource, selectedTarget);
     updateLiveResult(fullTextToShow, translated);
-
-    clearTimeout(silenceTimer);
-    silenceTimer = setTimeout(() => {
-      if (activeBlock) {
-        activeBlock = null; 
-        finalTranscriptAccumulator = ""; 
-      }
-    }, 5000); 
   };
 
   recognition.onerror = function (event) {
     console.error("Speech error:", event.error);
   };
 
-  // FITUR ANTI STOP SENDIRI DI HP
+  // Murni auto-restart jika browser HP menutup mic karena hening sesaat,
+  // TAPI tidak akan membuat paragraf baru (tetap di satu blok sampai tombol Stop ditekan).
   recognition.onend = function () {
-    // Jika user TIDAK sengaja menolak/mengklik stop, tapi HP menutupnya otomatis, nyalakan lagi secara diam-diam
-    if (!isUserStopped) {
-      try {
-        recognition.start();
-      } catch (e) {
-        console.log("Gagal auto-restart:", e);
-      }
-    } else {
-      activeBlock = null;
-      finalTranscriptAccumulator = "";
-      clearTimeout(silenceTimer);
+    if (isRunning) {
+      setTimeout(() => {
+        if (isRunning) {
+          try {
+            recognition.start();
+          } catch (e) {}
+        }
+      }, 300);
     }
   };
 }
 
 initSpeechRecognition();
 
-/* START */
+/* TOMBOL START */
 document.getElementById("startBtn").addEventListener("click", () => {
-  isUserStopped = false; // Tandai bahwa user ingin merekam
-  
+  if (isRunning) return;
+
+  isRunning = true;
+  activeBlock = null;
+  finalTranscriptAccumulator = "";
+
   if (!recognition) {
     initSpeechRecognition();
   }
 
   recognition.lang = selectedSpeechLang;
-  activeBlock = null;
-  finalTranscriptAccumulator = "";
 
   try {
     recognition.start();
   } catch (e) {
-    console.log("Recognition sudah aktif:", e);
+    console.log("Gagal start:", e);
   }
 });
 
-/* STOP */
+/* TOMBOL STOP (Disinilah baru benar-benar berhenti) */
 document.getElementById("stopBtn").addEventListener("click", () => {
-  isUserStopped = true; // Tandai bahwa user sengaja berhenti
-  if (!recognition) return;
+  isRunning = false; // Matikan status aktif
   
-  recognition.stop();
+  if (recognition) {
+    try {
+      recognition.stop();
+    } catch (e) {}
+  }
+
   activeBlock = null;
   finalTranscriptAccumulator = "";
-  clearTimeout(silenceTimer);
 });
 
-/* FUNGSI UPDATE LIVE */
+/* FUNGSI UPDATE LIVE DI SATU BLOK YANG SAMA */
 function updateLiveResult(source, translated) {
   const empty = conversation.querySelector(".empty-state");
   if (empty) empty.remove();
@@ -130,6 +118,7 @@ function updateLiveResult(source, translated) {
     minute: "2-digit"
   });
 
+  // Selama tombol stop belum ditekan, teks akan terus diperbarui di blok ini tanpa bikin baris baru
   if (!activeBlock) {
     const block = document.createElement("div");
     block.className = "block";
