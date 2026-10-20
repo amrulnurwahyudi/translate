@@ -1,4 +1,4 @@
-let recognition;
+let recognition = null;
 const conversation = document.getElementById("conversation");
 
 const SpeechRecognition =
@@ -9,10 +9,10 @@ let selectedTarget = "EN";
 let selectedSpeechLang = "id-ID";
 
 let activeBlock = null; 
-let finalTranscriptAccumulator = ""; 
+let fullAccumulatedText = ""; 
 let isRunning = false; 
 
-function initSpeechRecognition() {
+function startRecognitionInstance() {
   if (!SpeechRecognition) {
     conversation.innerHTML = `
       <div class="empty-state">
@@ -22,6 +22,14 @@ function initSpeechRecognition() {
     return;
   }
 
+  // Bersihkan instance lama
+  if (recognition) {
+    try { 
+      recognition.onend = null; 
+      recognition.stop(); 
+    } catch(e) {}
+  }
+
   recognition = new SpeechRecognition();
   recognition.continuous = true;
   recognition.interimResults = true; 
@@ -29,39 +37,58 @@ function initSpeechRecognition() {
 
   recognition.onresult = async function (event) {
     let interimTranscript = "";
-    let currentFinalThisSession = "";
+    let finalThisSession = "";
 
     for (let i = event.resultIndex; i < event.results.length; ++i) {
       if (event.results[i].isFinal) {
-        currentFinalThisSession += event.results[i][0].transcript + " ";
+        finalThisSession += event.results[i][0].transcript + " ";
       } else {
         interimTranscript += event.results[i][0].transcript;
       }
     }
 
-    if (currentFinalThisSession) {
-      finalTranscriptAccumulator += currentFinalThisSession;
+    if (finalThisSession) {
+      fullAccumulatedText += finalThisSession;
     }
 
-    const fullTextToShow = (finalTranscriptAccumulator + interimTranscript).trim();
-    if (!fullTextToShow) return;
+    const currentLiveText = (fullAccumulatedText + interimTranscript).trim();
+    if (!currentLiveText) return;
 
-    // Terjemahkan secara live tanpa restart
-    const translated = await translateText(fullTextToShow, selectedSource, selectedTarget);
-    updateLiveResult(fullTextToShow, translated);
+    const translated = await translateText(currentLiveText, selectedSource, selectedTarget);
+    updateLiveResult(currentLiveText, translated);
   };
 
   recognition.onerror = function (event) {
-    console.error("Speech error:", event.error);
+    console.log("Speech error:", event.error);
   };
 
-  // DIHAPUS/DIKOSONGI: Tidak ada lagi auto-restart di onend agar HP tidak restart-restart sendiri & berulang.
+  // KUNCI UTAMA: Ketika browser HP memutus sesi (baik karena timeout 30 detik maupun hening),
+  // langsung sambungkan lagi instance baru seketika tanpa kehilangan teks yang sudah ada.
   recognition.onend = function () {
-    // Biarkan kosong agar benar-benar berhenti tenang sesuai alur sistem
-  };
-}
+    if (isRunning) {
+      // Pindahkan teks live saat ini ke akumulator permanen agar tidak ada yang hilang saat restart sesi
+      if (activeBlock) {
+        fullAccumulatedText = activeBlock.querySelector(".source").innerText + " ";
+      }
 
-initSpeechRecognition();
+      setTimeout(() => {
+        if (isRunning) {
+          try {
+            startRecognitionInstance();
+          } catch (e) {
+            console.log("Restart sesi gagal:", e);
+          }
+        }
+      }, 100); // Jeda sangat singkat (0.1 detik) agar perpindahan sesi tidak terasa
+    }
+  };
+
+  try {
+    recognition.start();
+  } catch (e) {
+    console.log("Start error:", e);
+  }
+}
 
 /* TOMBOL START */
 document.getElementById("startBtn").addEventListener("click", () => {
@@ -69,33 +96,24 @@ document.getElementById("startBtn").addEventListener("click", () => {
 
   isRunning = true;
   activeBlock = null;
-  finalTranscriptAccumulator = "";
+  fullAccumulatedText = "";
 
-  if (!recognition) {
-    initSpeechRecognition();
-  }
-
-  recognition.lang = selectedSpeechLang;
-
-  try {
-    recognition.start();
-  } catch (e) {
-    console.log("Gagal start:", e);
-  }
+  startRecognitionInstance();
 });
 
 /* TOMBOL STOP */
 document.getElementById("stopBtn").addEventListener("click", () => {
-  isRunning = false; 
+  isRunning = false; // Matikan total
   
   if (recognition) {
     try {
+      recognition.onend = null;
       recognition.stop();
     } catch (e) {}
   }
 
   activeBlock = null;
-  finalTranscriptAccumulator = "";
+  fullAccumulatedText = "";
 });
 
 /* FUNGSI UPDATE LIVE */
@@ -162,8 +180,8 @@ document.querySelectorAll(".target-lang").forEach(item => {
 confirmBtn.addEventListener("click", () => {
   document.getElementById("langBtn").innerHTML = `${selectedSource} ⇄ ${selectedTarget} ▼`;
   modal.style.display = "none";
-  if (recognition) {
-    recognition.lang = selectedSpeechLang;
+  if (recognition && isRunning) {
+    startRecognitionInstance();
   }
 });
 
