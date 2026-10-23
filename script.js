@@ -1,4 +1,5 @@
 let recognition = null;
+
 const conversation = document.getElementById("conversation");
 
 const SpeechRecognition =
@@ -8,10 +9,15 @@ let selectedSource = "ID";
 let selectedTarget = "EN";
 let selectedSpeechLang = "id-ID";
 
-let activeBlock = null; 
-let fullAccumulatedText = ""; 
-let isRunning = false; 
+let activeBlock = null;
+let fullAccumulatedText = "";
+let isRunning = false;
 
+let translateTimer = null;
+
+/* ===========================
+   START SPEECH RECOGNITION
+=========================== */
 function startRecognitionInstance() {
   if (!SpeechRecognition) {
     conversation.innerHTML = `
@@ -22,185 +28,214 @@ function startRecognitionInstance() {
     return;
   }
 
-  // Bersihkan instance lama
-  if (recognition) {
-    try { 
-      recognition.onend = null; 
-      recognition.stop(); 
-    } catch(e) {}
-  }
-
   recognition = new SpeechRecognition();
+
   recognition.continuous = true;
-  recognition.interimResults = true; 
+  recognition.interimResults = true;
   recognition.lang = selectedSpeechLang;
 
-  recognition.onresult = async function (event) {
-    let interimTranscript = "";
-    let finalThisSession = "";
+  recognition.onstart = () => {
+    console.log("Speech Started");
+  };
 
-    for (let i = event.resultIndex; i < event.results.length; ++i) {
+  recognition.onresult = function (event) {
+    let interimTranscript = "";
+    let finalTranscript = "";
+
+    for (
+      let i = event.resultIndex;
+      i < event.results.length;
+      i++
+    ) {
+      const text = event.results[i][0].transcript;
+
       if (event.results[i].isFinal) {
-        finalThisSession += event.results[i][0].transcript + " ";
+        finalTranscript += text + " ";
       } else {
-        interimTranscript += event.results[i][0].transcript;
+        interimTranscript += text;
       }
     }
 
-    if (finalThisSession) {
-      fullAccumulatedText += finalThisSession;
+    // Simpan hanya hasil FINAL
+    if (finalTranscript.trim()) {
+      const cleanText = finalTranscript.trim();
+
+      // Hindari duplikasi
+      if (!fullAccumulatedText.includes(cleanText)) {
+        fullAccumulatedText += cleanText + " ";
+      }
     }
 
-    const currentLiveText = (fullAccumulatedText + interimTranscript).trim();
-    if (!currentLiveText) return;
+    const currentText =
+      fullAccumulatedText + interimTranscript;
 
-    const translated = await translateText(currentLiveText, selectedSource, selectedTarget);
-    updateLiveResult(currentLiveText, translated);
+    if (!currentText.trim()) return;
+
+    clearTimeout(translateTimer);
+
+    translateTimer = setTimeout(async () => {
+      const translated = await translateText(
+        currentText,
+        selectedSource,
+        selectedTarget
+      );
+
+      updateLiveResult(
+        currentText.trim(),
+        translated
+      );
+    }, 300);
   };
 
   recognition.onerror = function (event) {
-    console.log("Speech error:", event.error);
+    console.log("Speech Error:", event.error);
+
+    if (
+      event.error === "no-speech" ||
+      event.error === "aborted"
+    ) {
+      return;
+    }
   };
 
-  // KUNCI UTAMA: Ketika browser HP memutus sesi (baik karena timeout 30 detik maupun hening),
-  // langsung sambungkan lagi instance baru seketika tanpa kehilangan teks yang sudah ada.
   recognition.onend = function () {
-    if (isRunning) {
-      // Pindahkan teks live saat ini ke akumulator permanen agar tidak ada yang hilang saat restart sesi
-      if (activeBlock) {
-        fullAccumulatedText = activeBlock.querySelector(".source").innerText + " ";
-      }
+    console.log("Speech Ended");
 
-      setTimeout(() => {
-        if (isRunning) {
-          try {
-            startRecognitionInstance();
-          } catch (e) {
-            console.log("Restart sesi gagal:", e);
-          }
+    if (!isRunning) return;
+
+    // Android sering memutus sendiri.
+    // Reconnect otomatis.
+    setTimeout(() => {
+      if (!isRunning) return;
+
+      try {
+        recognition.start();
+      } catch (e) {
+        console.log("Restart failed", e);
+
+        try {
+          startRecognitionInstance();
+        } catch (err) {
+          console.log(err);
         }
-      }, 100); // Jeda sangat singkat (0.1 detik) agar perpindahan sesi tidak terasa
-    }
+      }
+    }, 500);
   };
 
   try {
     recognition.start();
   } catch (e) {
-    console.log("Start error:", e);
+    console.log(e);
   }
 }
 
-/* TOMBOL START */
-document.getElementById("startBtn").addEventListener("click", () => {
-  if (isRunning) return;
+/* ===========================
+   START BUTTON
+=========================== */
+document
+  .getElementById("startBtn")
+  .addEventListener("click", () => {
+    if (isRunning) return;
 
-  isRunning = true;
-  activeBlock = null;
-  fullAccumulatedText = "";
+    isRunning = true;
 
-  startRecognitionInstance();
-});
+    activeBlock = null;
+    fullAccumulatedText = "";
 
-/* TOMBOL STOP */
-document.getElementById("stopBtn").addEventListener("click", () => {
-  isRunning = false; // Matikan total
-  
-  if (recognition) {
-    try {
+    startRecognitionInstance();
+  });
+
+/* ===========================
+   STOP BUTTON
+=========================== */
+document
+  .getElementById("stopBtn")
+  .addEventListener("click", () => {
+    isRunning = false;
+
+    if (recognition) {
       recognition.onend = null;
-      recognition.stop();
-    } catch (e) {}
-  }
 
-  activeBlock = null;
-  fullAccumulatedText = "";
-});
+      try {
+        recognition.stop();
+      } catch (e) {}
+    }
+  });
 
-/* FUNGSI UPDATE LIVE */
+/* ===========================
+   UPDATE TEXT
+=========================== */
 function updateLiveResult(source, translated) {
-  const empty = conversation.querySelector(".empty-state");
+  const empty =
+    conversation.querySelector(".empty-state");
+
   if (empty) empty.remove();
 
   const now = new Date();
+
   const time = now.toLocaleTimeString([], {
     hour: "2-digit",
-    minute: "2-digit"
+    minute: "2-digit",
   });
 
   if (!activeBlock) {
     const block = document.createElement("div");
+
     block.className = "block";
+
     block.innerHTML = `
-      <div class="time">${time}</div>
-      <div class="source">${source}</div>
-      <div class="translate">${translated}</div>
-    `;
+        <div class="time">${time}</div>
+        <div class="source">${source}</div>
+        <div class="translate">${translated}</div>
+      `;
+
     conversation.appendChild(block);
-    activeBlock = block; 
+
+    activeBlock = block;
   } else {
-    activeBlock.querySelector(".source").innerText = source;
-    activeBlock.querySelector(".translate").innerText = translated;
+    activeBlock.querySelector(".source").innerText =
+      source;
+
+    activeBlock.querySelector(".translate").innerText =
+      translated;
   }
 
-  conversation.scrollTop = conversation.scrollHeight;
+  conversation.scrollTop =
+    conversation.scrollHeight;
 }
 
-/* MODAL LANGUAGE & TRANSLATE */
-const langBtn = document.getElementById("langBtn");
-const modal = document.getElementById("languageModal");
-const confirmBtn = document.getElementById("confirmLang");
-
-langBtn.addEventListener("click", () => {
-  modal.style.display = "block";
-});
-
-window.addEventListener("click", (e) => {
-  if (e.target === modal) {
-    modal.style.display = "none";
-  }
-});
-
-document.querySelectorAll(".source-lang").forEach(item => {
-  item.addEventListener("click", () => {
-    selectedSource = item.dataset.code;
-    selectedSpeechLang = item.dataset.speech || "id-ID";
-    document.querySelectorAll(".source-lang").forEach(x => x.classList.remove("selected"));
-    item.classList.add("selected");
-  });
-});
-
-document.querySelectorAll(".target-lang").forEach(item => {
-  item.addEventListener("click", () => {
-    selectedTarget = item.dataset.code;
-    document.querySelectorAll(".target-lang").forEach(x => x.classList.remove("selected"));
-    item.classList.add("selected");
-  });
-});
-
-confirmBtn.addEventListener("click", () => {
-  document.getElementById("langBtn").innerHTML = `${selectedSource} ⇄ ${selectedTarget} ▼`;
-  modal.style.display = "none";
-  if (recognition && isRunning) {
-    startRecognitionInstance();
-  }
-});
-
-async function translateText(text, fromLang, toLang) {
+/* ===========================
+   TRANSLATE
+=========================== */
+async function translateText(
+  text,
+  fromLang,
+  toLang
+) {
   try {
-    const targetElement = document.querySelector(`.target-lang[data-code="${toLang}"]`);
-    const apiTarget = targetElement ? targetElement.dataset.api : toLang.toLowerCase();
+    const targetElement = document.querySelector(
+      `.target-lang[data-code="${toLang}"]`
+    );
 
-    const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${fromLang.toLowerCase()}|${apiTarget}`;
+    const apiTarget =
+      targetElement?.dataset.api ||
+      toLang.toLowerCase();
+
+    const url =
+      `https://api.mymemory.translated.net/get?q=${encodeURIComponent(
+        text
+      )}&langpair=${fromLang.toLowerCase()}|${apiTarget}`;
 
     const response = await fetch(url);
+
     const data = await response.json();
 
-    if (data && data.responseData && data.responseData.translatedText) {
-      return data.responseData.translatedText;
-    }
-    return "Terjemahan gagal";
-  } catch (error) {
-    console.error(error);
+    return (
+      data?.responseData?.translatedText ||
+      "Terjemahan gagal"
+    );
+  } catch (e) {
+    console.error(e);
     return "Gagal terhubung ke server";
   }
 }
