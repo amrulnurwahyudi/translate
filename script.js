@@ -10,7 +10,6 @@ let selectedTarget = "EN";
 let selectedSpeechLang = "id-ID";
 
 let activeBlock = null;
-let fullAccumulatedText = "";
 let isRunning = false;
 
 let translateTimer = null;
@@ -121,7 +120,6 @@ document
     isRunning = true;
 
     activeBlock = null;
-    fullAccumulatedText = "";
 
     startRecognitionInstance();
   });
