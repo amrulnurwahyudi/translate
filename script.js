@@ -38,54 +38,35 @@ function startRecognitionInstance() {
     console.log("Speech Started");
   };
 
-  recognition.onresult = function (event) {
-    let interimTranscript = "";
-    let finalTranscript = "";
+  recognition.onresult = async function(event) {
 
-    for (
-      let i = event.resultIndex;
-      i < event.results.length;
-      i++
-    ) {
-      const text = event.results[i][0].transcript;
+  let finalText = "";
 
-      if (event.results[i].isFinal) {
-        finalTranscript += text + " ";
-      } else {
-        interimTranscript += text;
-      }
-    }
+  for (let i = 0; i < event.results.length; i++) {
+    finalText += event.results[i][0].transcript + " ";
+  }
 
-    // Simpan hanya hasil FINAL
-    if (finalTranscript.trim()) {
-      const cleanText = finalTranscript.trim();
+  finalText = finalText.trim();
 
-      // Hindari duplikasi
-      if (!fullAccumulatedText.includes(cleanText)) {
-        fullAccumulatedText += cleanText + " ";
-      }
-    }
+  if (!finalText) return;
 
-    const currentText =
-      fullAccumulatedText + interimTranscript;
+  clearTimeout(translateTimer);
 
-    if (!currentText.trim()) return;
+  translateTimer = setTimeout(async () => {
 
-    clearTimeout(translateTimer);
+    const translated = await translateText(
+      finalText,
+      selectedSource,
+      selectedTarget
+    );
 
-    translateTimer = setTimeout(async () => {
-      const translated = await translateText(
-        currentText,
-        selectedSource,
-        selectedTarget
-      );
+    updateLiveResult(
+      finalText,
+      translated
+    );
 
-      updateLiveResult(
-        currentText.trim(),
-        translated
-      );
-    }, 300);
-  };
+  }, 300);
+};
 
   recognition.onerror = function (event) {
     console.log("Speech Error:", event.error);
